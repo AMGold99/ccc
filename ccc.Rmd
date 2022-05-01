@@ -1,0 +1,100 @@
+---
+title: "CCC Data Summary"
+author: "Asa Gold"
+date: "4/30/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+load('ccc.RData')
+
+library(tidyverse)
+```
+
+
+## Basic Summary
+
+Take a quick look at the Crowd Counting Consortium's [GitHub page](https://github.com/nonviolent-action-lab/crowd-counting-consortium) and their [website](https://sites.google.com/view/crowdcountingconsortium/home).
+
+The Crowd Counting Consortium (CCC), updated weekly, currently contains ~100k observations between `r min(ccc$date, na.rm = TRUE)` and `r max(ccc$date, na.rm = TRUE)`.
+
+Below is a glimpse at all 69 variables. 
+
+
+```{r}
+glimpse(ccc)
+```
+
+Several are particularly relevant.
+
+- Descriptive Variables
+  - **location_detail**: non-standardized descriptions of the place of the protest. Ex: `r ccc$location_detail[997:999]`
+  - **actors**: Who engaged in the protest. Slightly more standardized than location_detail but still highly variable (`r length(unique(ccc$actors))` unique values). Ex: `r unique(ccc$actors)[501:504]`
+  - **claims**: main grievances, goals, or rallying cries of the protestors. Ex: `r unique(ccc$claims)[403:405]`
+  - **valance**: political leaning of the protest; 0 = neutral; 1 = left; 2 = right. 
+- Location Variables
+  - **locality**: normally a city in or around which the protest event took place. Ex: `r ccc$locality[3000:3003]`.
+  - **fips_code**: county code associated with the locality
+
+
+It is important to note that the relative frequency of protest events have ebbed and flowed in response to major nation-wide events. The plot below reports daily count of protest events between Jan 2017 and present. Note the spikes during and directly after several headline-making national events, like March for Our Lives (gun control) and George Floyd's murder (racism and police violence). This plot does not indicate the relative *size* of the protests; for more on size estimates, see **size_[low/mean/high]** variables
+ 
+
+```{r}
+timeline_plot
+```
+
+
+
+## Missing Values
+
+Below are proportions of missing values for all variables, except the *source_n* variables, which are largely missing. 
+
+```{r missing, fig.height=7}
+missing_plot
+```
+
+
+# Filtering
+
+To restrict our dataset to only include protests occurring on college or university campuses or organized by college students, we use **location_detail** and **actors**. The code below filters the master dataset such that only those observations that reference university or college in *either* **location_detail** or **actors**
+
+```{r filter, echo=TRUE}
+# NOTE: 'ccc' is the master dataset
+college_filtered <- ccc |>
+  
+  filter(
+    str_detect(actors,
+               regex('(universit|college)', ignore_case = TRUE)
+               ) | 
+      str_detect(location_detail,
+                 regex('(universit|college)', ignore_case = TRUE))
+  ) |>
+  
+  filter(date <= Sys.Date())
+```
+
+
+With this initial, naive filtering, we are left with `r nrow(college_filtered)` observations. Below, inspect several location_detail and actors observations.
+
+```{r}
+head(college_filtered)[c('location_detail','actors')]
+```
+
+While this initial filtering is highly effective, manual filtering may still be necessary. For instance, one March for Our Lives protest occurred near "College Lakes Recreation Center." Such observations cannot be excluded by naive filtering alone.
+
+
+
+The below plot indicates daily protest occurence in college or university campuses between Jan 2017 and present.
+
+
+```{r}
+college_timeline_plot
+```
+
+
+
