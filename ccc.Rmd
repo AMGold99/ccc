@@ -40,7 +40,7 @@ Several are particularly relevant.
   - **fips_code**: county code associated with the locality
 
 
-It is important to note that the relative frequency of protest events have ebbed and flowed in response to major nation-wide events. The plot below reports daily count of protest events between Jan 2017 and present. Note the spikes during and directly after several headline-making national events, like March for Our Lives (gun control) and George Floyd's murder (racism and police violence). This plot does not indicate the relative *size* of the protests; for more on size estimates, see **size_[low/mean/high]** variables (do note that size estimates are 50% coverage; see Missing Values).
+It is important to note that the relative frequency of protest events have ebbed and flowed in response to major nation-wide events. The plot below reports daily count of protest events between Jan 2017 and present. Note the spikes during and directly after several headline-making national events, like March for Our Lives (gun control) and George Floyd's murder (racism and police violence). This plot does not indicate the relative *size* of the protests; for more on size estimates, see **size_[low/mean/high]** variables (do note that size estimates have ~50% coverage; see Missing Values).
  
 
 ```{r}
