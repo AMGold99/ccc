@@ -2,11 +2,24 @@
 # load packages
 library(tidyverse)
 library(scales)
+library(usmap)
+
+
+#### LOAD DATA ####
 
 # load raw compiled .csv data
 ccc <- read.csv("https://raw.githubusercontent.com/nonviolent-action-lab/crowd-counting-consortium/master/ccc_compiled.csv") |>
-  mutate(date = as.Date(date))
+  mutate(date = as.Date(date),
+         year = lubridate::year(date),
+         fips_code = case_when(
+           nchar(fips_code) == 4 ~ paste0("0",fips_code),
+           TRUE ~ as.character(fips_code)
+           ),
+         state_code = str_sub(fips_code, 1, 2)
+         )
 
+
+#### MISSING VALUES ####
 
 # check missing values
 na_list <- purrr::map(names(ccc), ~ sum(is.na(ccc[[.x]]))
@@ -48,8 +61,7 @@ missing_plot <- missing |>
   )
 
 
-
-#### Exploratory Data Analysis ####
+#### COLLEGE_FILTERED ####
 
 # filtering positively on colleges and universities
 college_filtered <- ccc |>
@@ -62,12 +74,64 @@ college_filtered <- ccc |>
                  regex('(universit|college)', ignore_case = TRUE))
   ) |>
   
-  filter(date <= Sys.Date())
+  filter(date <= Sys.Date()) |>
+  
+  filter(!(state_code %in% c("66","72",NA))) |>
+  filter(online != 1)
 
-fips <- college_filtered |>
-  pull(fips_code) |>
-  unique()
 
+
+#### FIPS CALIFORNIA ####
+
+ccc_ca <- college_filtered |>
+  filter(state == "CA") |>
+  select(fips_code)
+
+
+ccc_ca_count <- college_filtered |>
+  filter(state == "CA") |>
+  group_by(fips_code) |>
+  summarise(count = n()) |>
+  rename(fips = "fips_code")
+
+fips_df <- readr::read_csv("https://raw.githubusercontent.com/kjhealy/fips-codes/master/state_and_county_fips_master.csv")
+
+fips_ca <- fips_df |>
+  filter(state == "CA") |>
+  mutate(fips = case_when(
+    nchar(fips) == 4 ~ paste0("0",fips),
+    TRUE ~ as.character(fips)
+    )
+  ) |>
+  mutate(ccc = case_when(
+    fips %in% ccc_ca$fips_code ~ "1",
+    TRUE ~ "0"
+    )
+  ) |>
+  
+  left_join(
+    ccc_ca_count
+  ) |>
+  
+  mutate(count = replace_na(count,0))
+
+
+ 
+
+
+
+#### CLAIMS FILTERING ####
+ccc |>
+  filter(str_detect(claims, regex("(universit|college)", ignore_case = TRUE)) & 
+           !str_detect(actors, regex("(universit|college)", ignore_case = TRUE)) &
+           !str_detect(location_detail, regex("universit|college", ignore_case = TRUE))
+           ) |> 
+  select(actors, location_detail,claims)
+
+
+
+
+#### VIZ ####
 
 # timeline plot
 timeline_plot <- ccc |>
@@ -151,6 +215,10 @@ college_timeline_plot <- college_filtered |>
 
 
 
+
+
+
+
 save.image("ccc.RData")
 
 
@@ -159,43 +227,3 @@ save.image("ccc.RData")
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# filtering negatively on high, middle, elementary, prep, etc. schools
-#  ccc |> 
-#    dplyr::filter(str_detect(actors, 
-#                             regex("student", ignore_case = TRUE)
-#    ),
-#    !str_detect(location_detail,
-#                regex("(high|middle|elementary|public|charter) school", ignore_case = TRUE)
-#    ),
-#    !str_detect(location_detail,
-#                regex("(high|middle|elementary|public|charter|prep.+)", ignore_case = FALSE)
-#    ),
-#    !str_detect(location_detail,
-#                regex("highschool", ignore_case = TRUE)
-#    ),
-#    !str_detect(actors,
-#                regex('(high|middle|elementary|public|charter) school', ignore_case = TRUE)
-#    ),
-#    !str_detect(claims,
-#                regex('(high|middle|elementary|public|charter) school', ignore_case = TRUE)),
-#    !str_detect(macroevent,
-#                regex('nationalschoolwalkout', ignore_case = TRUE)
-#    )
-#   ) |> View()

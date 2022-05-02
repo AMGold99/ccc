@@ -4,7 +4,6 @@ author: "Asa Gold"
 date: "4/30/2022"
 output:
   pdf_document: default
-  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -13,16 +12,15 @@ knitr::opts_chunk$set(echo = FALSE)
 load('ccc.RData')
 
 library(tidyverse)
+library(usmap)
 ```
 
 
-## Basic Summary
+# Basic Summary
 
-Take a quick look at the Crowd Counting Consortium's [GitHub page](https://github.com/nonviolent-action-lab/crowd-counting-consortium) and their [website](https://sites.google.com/view/crowdcountingconsortium/home).
+The Crowd Counting Consortium (CCC), updated weekly, currently contains ~100k observations between `r min(ccc$date, na.rm = TRUE)` and `r max(ccc$date, na.rm = TRUE)`. Take a quick look at the their [\underline{GitHub page}](https://github.com/nonviolent-action-lab/crowd-counting-consortium) and their [\underline{website}](https://sites.google.com/view/crowdcountingconsortium/home).
 
-The Crowd Counting Consortium (CCC), updated weekly, currently contains ~100k observations between `r min(ccc$date, na.rm = TRUE)` and `r max(ccc$date, na.rm = TRUE)`.
-
-Below is a glimpse at all 69 variables. 
+Below is a glimpse at all 69 variables (plus several I have added: **year** and **state_code**).
 
 
 ```{r}
@@ -36,12 +34,13 @@ Several are particularly relevant.
   - **actors**: Who engaged in the protest. Slightly more standardized than location_detail but still highly variable (`r length(unique(ccc$actors))` unique values). Ex: `r unique(ccc$actors)[501:504]`
   - **claims**: main grievances, goals, or rallying cries of the protestors. Ex: `r unique(ccc$claims)[403:405]`
   - **valance**: political leaning of the protest; 0 = neutral; 1 = left; 2 = right. 
+  - I don't focus on **issues** and **macroevent** here, as neither will help us directly filter for college/university protests, but both may be helpful later on in figuring out larger goals or movements associated with specific protests. Similarly, **type** may serve to further narrow our dataset if we want to exclude, say, prayer services.
 - Location Variables
   - **locality**: normally a city in or around which the protest event took place. Ex: `r ccc$locality[3000:3003]`.
   - **fips_code**: county code associated with the locality
 
 
-It is important to note that the relative frequency of protest events have ebbed and flowed in response to major nation-wide events. The plot below reports daily count of protest events between Jan 2017 and present. Note the spikes during and directly after several headline-making national events, like March for Our Lives (gun control) and George Floyd's murder (racism and police violence). This plot does not indicate the relative *size* of the protests; for more on size estimates, see **size_[low/mean/high]** variables
+It is important to note that the relative frequency of protest events have ebbed and flowed in response to major nation-wide events. The plot below reports daily count of protest events between Jan 2017 and present. Note the spikes during and directly after several headline-making national events, like March for Our Lives (gun control) and George Floyd's murder (racism and police violence). This plot does not indicate the relative *size* of the protests; for more on size estimates, see **size_[low/mean/high]** variables (do note that size estimates are 50% coverage; see Missing Values).
  
 
 ```{r}
@@ -50,7 +49,7 @@ timeline_plot
 
 
 
-## Missing Values
+# Missing Values
 
 Below are proportions of missing values for all variables, except the *source_n* variables, which are largely missing. 
 
@@ -61,7 +60,7 @@ missing_plot
 
 # Filtering
 
-To restrict our dataset to only include protests occurring on college or university campuses or organized by college students, we use **location_detail** and **actors**. The code below filters the master dataset such that only those observations that reference university or college in *either* **location_detail** or **actors**
+To restrict our dataset to only include protests occurring on college or university campuses or organized by college students, we use **location_detail** and **actors**. The code below filters the master dataset such that only those observations that reference university or college in *either* **location_detail** or **actors**. Further, we restrict the date range to before the present, remove non 50 state fips codes, and remove any online protests.
 
 ```{r filter, echo=TRUE}
 # NOTE: 'ccc' is the master dataset
@@ -75,21 +74,28 @@ college_filtered <- ccc |>
                  regex('(universit|college)', ignore_case = TRUE))
   ) |>
   
-  filter(date <= Sys.Date())
+  filter(date <= Sys.Date()) |>
+  
+  filter(!(state_code %in% c("66","72",NA))) |>
+  filter(online != 1)
 ```
 
 
-With this initial, naive filtering, we are left with `r nrow(college_filtered)` observations. Below, inspect several location_detail and actors observations.
+With this initial, naive filtering, we are left with `r nrow(college_filtered)` observations. Below, inspect several **location_detail** and **actors** observations.
 
 ```{r}
-head(college_filtered)[c('location_detail','actors')]
+head(college_filtered)[c('location_detail','actors')] |>
+  knitr::kable()
 ```
 
 While this initial filtering is highly effective, manual filtering may still be necessary. For instance, one March for Our Lives protest occurred near "College Lakes Recreation Center." Such observations cannot be excluded by naive filtering alone.
 
+It is also appears that CCC considers multiple days of ongoing protests (e.g., encampment style) as distinct events. For instance, the [\underline{Atlanta Student Movement}](https://www.ajc.com/education/atlanta-students-protest-for-better-housing-and-more-funding-for-hbcus/OSEVQURN75BE3B3HBBA4ZIYJCE/) staged an extended protest over the course of a week in October 2021. CCC has an entry for each day. These observations, however, are not mere duplicates; they differ slightly in participant makeup and sources. **We should discuss how best to handle such cases.**
+
+Further, we should consider whether to include **claims** in our filtering effort. If **claims** references universities or colleges but neither **location_detail** nor **actors** does, should we include the observation in our dataset? There are ~330 such cases. For instance, a student researcher union at UC Berkeley stages protests against rollbacks in rights and benefits. Both **actor** and **location_detail** made no explicit reference to university or college.
 
 
-The below plot indicates daily protest occurence in college or university campuses between Jan 2017 and present.
+The below plot indicates daily protest occurence in/around college or university campuses between Jan 2017 and present.
 
 
 ```{r}
@@ -97,4 +103,70 @@ college_timeline_plot
 ```
 
 
+# Geography
+
+The college/university dataset contains observations from all 50 states and the District of Columbia. Below, observe the distribution of college protest events across states in each year since CCC began collecting data.
+
+```{r}
+college_filtered |>
+  
+  group_by(resolved_state,year) |>
+  summarise(count = n()) |>
+  pivot_wider(
+    names_from = year,
+    values_from = count
+  )|>
+  select(resolved_state,`2017`,`2018`,`2019`,`2020`,`2021`,`2022`) |>
+  mutate_if(is.numeric, ~ replace_na(.x, 0)) |>
+  rowwise() |>
+  mutate(Total = sum(c_across(where(is.numeric)))) |>
+  arrange(desc(Total)) |>
+  rename(State = "resolved_state") |>
+  knitr::kable() |>
+  suppressMessages()
+```
+
+
+Next, let's inspect county coverage. Taking as a case study California, which saw the most protests between 2017 and 2022, we can see which counties saw protests (left) and the raw count by county (right).
+
+```{r, fig.show="hold", out.width="50%"}
+par(mar = c(4, 4, .1, .1))
+
+# binary map plot
+plot_usmap(data = fips_ca, values = "ccc", include = "CA") +
+  
+  scale_fill_manual(
+    values = c(
+      `1` = "#7fb1e3",
+      `0` = "white"
+    ),
+    labels = c('Yes','No')
+  ) +
+  
+  labs(
+    fill = "Protest \noccurred?"
+  ) +
+  
+  theme(
+    text = element_text(size = 17.5),
+    legend.position = c(1,0.5)
+  )
+
+# count map plot
+plot_usmap(data = fips_ca, values = "count", include = "CA") +
+  
+  
+  
+  scale_fill_continuous(low = "white", high = "orange", 
+                        name = "Protest Count",
+                        breaks = c(0,30,60,90),
+                        label = c(0,30,60,90)                     
+                        ) +
+  
+  theme(
+    text = element_text(size = 17.5),
+    legend.position = c(1,0.5)
+  )
+
+```
 
