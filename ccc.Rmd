@@ -9,7 +9,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 
-load('ccc.RData')
+load('code/ccc.RData')
 
 library(tidyverse)
 library(usmap)

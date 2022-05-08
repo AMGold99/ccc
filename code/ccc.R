@@ -16,7 +16,8 @@ ccc <- read.csv("https://raw.githubusercontent.com/nonviolent-action-lab/crowd-c
            TRUE ~ as.character(fips_code)
            ),
          state_code = str_sub(fips_code, 1, 2)
-         )
+         ) |>
+  filter(date <= as.Date("2022-05-01"))
 
 
 #### MISSING VALUES ####
@@ -61,77 +62,132 @@ missing_plot <- missing |>
   )
 
 
-#### COLLEGE_FILTERED ####
+#### CCC_filtered ####
 
 # filtering positively on colleges and universities
-college_filtered <- ccc |>
+ccc_filtered <- ccc |>
   
+  # filter on actors, location_detail, claims
   filter(
     str_detect(actors,
                regex('(universit|college)', ignore_case = TRUE)
                ) | 
-      str_detect(location_detail,
-                 regex('(universit|college)', ignore_case = TRUE))
+    str_detect(location_detail,
+                regex('(universit|college)', ignore_case = TRUE)) |
+    str_detect(claims,
+               regex('(universit|college)', ignore_case = TRUE))
   ) |>
   
-  filter(date <= Sys.Date()) |>
+  filter(date <= as.Date("2022-05-01")) |>
   
   filter(!(state_code %in% c("66","72",NA))) |>
-  filter(online != 1)
+  filter(online != 1) |>
+  rename(fips = "fips_code") |>
+  tibble()
 
 
 
-#### FIPS CALIFORNIA ####
+#### PROTEST MAPS ####
 
-ccc_ca <- college_filtered |>
-  filter(state == "CA") |>
-  select(fips_code)
-
-
-ccc_ca_count <- college_filtered |>
-  filter(state == "CA") |>
-  group_by(fips_code) |>
-  summarise(count = n()) |>
+# fips associated with any protests
+ccc_fips <- ccc |>
+  select(fips_code) |>
   rename(fips = "fips_code")
 
+# fips associated with college protests
+ccc_filtered_fips <- ccc_filtered |>
+  select(fips)
+
+# count of any protest by fips county
+ccc_count <- ccc |>
+  group_by(fips_code) |>
+  summarise(total_count = n()) |>
+  rename(fips = "fips_code")
+
+# count of college protest by fips county
+ccc_filtered_count <- ccc_filtered |>
+  group_by(fips) |>
+  summarise(filtered_count = n())
+
+
+# load fips reference dataframe
 fips_df <- readr::read_csv("https://raw.githubusercontent.com/kjhealy/fips-codes/master/state_and_county_fips_master.csv")
 
-fips_ca <- fips_df |>
-  filter(state == "CA") |>
-  mutate(fips = case_when(
-    nchar(fips) == 4 ~ paste0("0",fips),
-    TRUE ~ as.character(fips)
-    )
-  ) |>
-  mutate(ccc = case_when(
-    fips %in% ccc_ca$fips_code ~ "1",
-    TRUE ~ "0"
+
+# calculate binary and count vars for protest occurrence
+fips_protest <- fips_df |>
+  filter(state %in% fips_info()$abbr) |>
+  mutate(
+    fips = case_when(
+          nchar(fips) == 4 ~ paste0("0",fips),
+          TRUE ~ as.character(fips)),
+    pbin = case_when(
+          fips %in% ccc_fips$fips ~ "1",
+          TRUE ~ "0"),
+    pfilterbin = case_when(
+      fips %in% ccc_filtered_fips$fips ~ "1",
+      TRUE ~ "0"
     )
   ) |>
   
-  left_join(
-    ccc_ca_count
-  ) |>
+  left_join(ccc_count) |>
   
-  mutate(count = replace_na(count,0))
-
-
- 
-
-
-
-#### CLAIMS FILTERING ####
-ccc |>
-  filter(str_detect(claims, regex("(universit|college)", ignore_case = TRUE)) & 
-           !str_detect(actors, regex("(universit|college)", ignore_case = TRUE)) &
-           !str_detect(location_detail, regex("universit|college", ignore_case = TRUE))
-           ) |> 
-  select(actors, location_detail,claims)
-
+  left_join(ccc_filtered_count) |>
+  
+  mutate(pcount = replace_na(total_count, 0),
+         pfiltercount = replace_na(filtered_count, 0), 
+         .keep = "unused")
 
 
 
 #### VIZ ####
+
+# Any Protest (not filtered) map
+plot_usmap(data = fips_protest, values = "pbin") +
+  
+  scale_fill_manual(
+    values = c(
+      `1` = "royalblue4",
+      `0` = "white",
+      `NA` = "grey25"
+    ),
+    labels = c('Yes','No',"No Data")
+  ) +
+  
+  labs(
+    title = "Protests at College and Universities",
+    subtitle = glue::glue("Jan 2017 to May 2022 (n = {nrow(ccc)})"),
+    fill = "Any Protest \nOccurred?"
+  ) +
+  
+  theme(
+    text = element_text(size = 12),
+    legend.position = c(1,0.5)
+  )
+
+# College Protest (filtered) map
+plot_usmap(data = fips_protest, values = "pfilterbin") +
+  
+  scale_fill_manual(
+    values = c(
+      `1` = "royalblue4",
+      `0` = "white",
+      `NA` = "grey25"
+    ),
+    labels = c('Yes','No',"No Data")
+  ) +
+  
+  labs(
+    title = "Protests at College and Universities",
+    subtitle = glue::glue("Jan 2017 to May 2022 (n = {nrow(ccc_filtered)})"),
+    fill = "College Protest \nOccurred?"
+  ) +
+  
+  theme(
+    text = element_text(size = 12),
+    legend.position = c(1,0.5)
+  )
+
 
 # timeline plot
 timeline_plot <- ccc |>
@@ -176,7 +232,7 @@ timeline_plot <- ccc |>
 
 
 #college timeline plot
-college_timeline_plot <- college_filtered |>
+college_timeline_plot <- ccc_filtered |>
   group_by(date) |>
   summarise(count = n()) |> 
   filter(count < 50) |>

@@ -15,7 +15,7 @@ colleges <- read_sheet(ss,
                        sheet = "IPEDS Inst Directory Data")
 
 
-nonstates <- setdiff(unique(college_complete$STABBR), 
+nonstates_college <- setdiff(unique(college_complete$STABBR), 
                      unique(fips_df$state)
                      )
 
@@ -28,7 +28,7 @@ college_fips <- colleges |>
     TRUE ~ as.character(zip)
   )) |>
   left_join(zip_join) |>
-  filter(!(STABBR %in% nonstates))
+  filter(!(STABBR %in% nonstates_college))
 
 
 city_join <- zip_crosswalk |>
@@ -67,4 +67,5 @@ college_complete <- college_fips |>
   )) |>
   distinct() |>
   filter(!duplicated(INSTNM)) |>
-  select(!fips.y)
+  select(!fips.y)|>
+  mutate(ZIP = unlist(ZIP))
