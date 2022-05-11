@@ -12,7 +12,7 @@ date_range <- seq(as.Date("2017-01-20"),as.Date("2022-05-01"), by = "day")
 
 
 
-# add static census variabls to this dataframe
+# add static census variables to this dataframe
 master_crosssection <- tibble(fips = conus_fips) |> 
   left_join(college_complete) |>
   mutate(college_present = case_when(
@@ -49,7 +49,7 @@ master_panel <- expand.grid(
          ))
 
 
-# pfiltercount: how many protests occurred
-# pbin: did any protests occurred
+# p[filter]count: how many protests occurred
+# p[filter]bin: did any protests occurred
 
 
