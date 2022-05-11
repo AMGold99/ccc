@@ -68,4 +68,11 @@ college_complete <- college_fips |>
   distinct() |>
   filter(!duplicated(INSTNM)) |>
   select(!fips.y)|>
-  mutate(ZIP = unlist(ZIP))
+  mutate(ZIP = unlist(ZIP),
+         OPEID = as.integer(OPEID),
+         OPEID = case_when(
+           str_length(OPEID) == 6 ~ paste0("00",OPEID),
+           str_length(OPEID) == 7 ~ paste0("0",OPEID),
+           str_length(OPEID) == 8 ~ as.character(OPEID),
+           str_length(OPEID) == 2 ~ as.character(NA)
+         ))
