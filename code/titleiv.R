@@ -83,21 +83,21 @@ for (file in loan_files) {
   
   if(str_detect(file,"2016")) {
     
-    df <- df |>
+    df1 <- df |>
       slice(2)
   } else {
     
-    df <- df |> 
+    df1 <- df |> 
       slice(3)
   }
   
-  ref_list[[file]] <- df |>
+  ref_list[[file]] <- df1 |>
     select(1) |>
     mutate(dateRange = str_remove_all(`OPE ID`, "Award Year Quarterly Activity[:blank:]|\\(|\\)"),
            .keep = "unused") |>
     separate(col = `dateRange`, 
              into = c("start_date","end_date"), 
-             sep = " - ") |>
+             sep = "-") |>
     mutate(quarter = str_remove_all(file, regex("dl.dashboard.ay|\\.xls", ignore_case = TRUE)),
            quarter = str_to_lower(str_replace_all(quarter,"_","-")),
            start_date = lubridate::mdy(start_date),
@@ -111,6 +111,12 @@ names(ref_list) <- str_remove_all(names(ref_list),regex("dl.dashboard.ay|\\.xls"
 date_crosswalk <- bind_rows(ref_list)
 
 #### Collate master dataframe ####
+for (i in seq_len(length(loan_list))) {
+  loan_list[[i]] <- loan_list[[i]] |>
+    mutate_if(is.numeric, as.character)
+}
+
+
 master_loan <- map_dfr(loan_list, ~ bind_rows(.x), .id = "quarter") |>
   left_join(
     date_crosswalk
@@ -119,7 +125,13 @@ master_loan <- map_dfr(loan_list, ~ bind_rows(.x), .id = "quarter") |>
   relocate(end_date, .after = "start_date") |>
   rename(OPEID = "OPE ID")
 
-
 # make sure all OPEID lengths are 8.
 unique(str_length(master_loan$OPEID))
+
+
+
+
+
+
+
 
